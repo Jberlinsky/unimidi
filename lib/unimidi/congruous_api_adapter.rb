@@ -3,14 +3,14 @@ module UniMIDI
   module CongruousApiAdapter
 
     module Device
-      
-      def initialize(device_obj)        
+
+      def initialize(device_obj)
         @device = device_obj
         @id = @device.id
         @name = @device.name
         populate_type
       end
-      
+
       def enabled?
         @device.enabled
       end
@@ -31,7 +31,7 @@ module UniMIDI
           self
         end
       end
-      
+
       def pretty_name
         "#{id}) #{name}"
       end
@@ -49,12 +49,17 @@ module UniMIDI
       end
 
       module ClassMethods
-        
+
         # prints ids and names of each device to the console
         def list
           all.each { |device| puts(device.pretty_name) }
         end
-        
+
+        def auto_gets(&block)
+          device = all.first
+          device.open(&block)
+        end
+
         # streamlined console prompt that asks the user to select a device
         def gets(&block)
           device = nil
@@ -72,7 +77,7 @@ module UniMIDI
           end
           device.open(&block)
         end
-        
+
         # returns the first device for this class
         def first(&block)
           use_device(all.first, &block)
@@ -87,7 +92,7 @@ module UniMIDI
         def all
           all_by_type.values.flatten
         end
-        
+
         # returns the device at <em>index</em> and opens it
         def use(index, &block)
           index = case index
@@ -95,10 +100,10 @@ module UniMIDI
             when :last then all.size - 1
             else index
           end
-          use_device(all[index], &block) 
+          use_device(all[index], &block)
         end
         alias_method :open, :use
-        
+
         # returns the device at <em>index</em>
         def [](index)
           all[index]
@@ -115,7 +120,7 @@ module UniMIDI
           @deference ||= {}
           @deference[self] = klass
         end
-        
+
         def device_class(klass)
           @device_class = klass
         end
@@ -127,18 +132,18 @@ module UniMIDI
         def output_class(klass)
           @output_class = klass
         end
-        
+
         def populate
           klass = @deference[self].respond_to?(:all_by_type) ? @deference[self] : @device_class
           @devices = {
             :input => klass.all_by_type[:input].map { |d| @input_class.new(d) },
             :output => klass.all_by_type[:output].map { |d| @output_class.new(d) }
-          }          
+          }
         end
         alias_method :refresh, :populate
-        
+
         private
-        
+
         def ensure_initialized
           populate unless initialized?
         end
@@ -146,16 +151,16 @@ module UniMIDI
         def initialized?
           instance_variable_defined?(:@devices) && !@devices.nil?
         end
-        
+
         def use_device(device, &block)
           device.open(&block)
-          device         
+          device
         end
 
       end
-      
+
       private
-      
+
       def populate_type
         @type = case @device.type
           when :source, :input then :input
@@ -168,13 +173,13 @@ module UniMIDI
   end
 
   class CongruousApiInput
-    
+
     include CongruousApiAdapter::Device
     extend CongruousApiAdapter::Device::ClassMethods
     extend Forwardable
-    
+
     def_delegators :@device, :buffer
-    
+
     #
     # returns an array of MIDI event hashes as such:
     #   [
@@ -227,22 +232,22 @@ module UniMIDI
     end
     alias_method :gets_data_bytestr, :gets_data_s
     alias_method :gets_data_hex, :gets_data_s
-    
+
     # clears the buffer
     def clear_buffer
       @device.buffer.clear
     end
-    
-    # gets any messages in the buffer in the same format as CongruousApiInput#gets 
+
+    # gets any messages in the buffer in the same format as CongruousApiInput#gets
     def gets_buffer(*a)
       @device.buffer
     end
-    
+
     # gets any messages in the buffer in the same format as CongruousApiInput#gets_s
     def gets_buffer_s(*a)
       @device.buffer.map { |msg| msg[:data] = TypeConversion.numeric_byte_array_to_hex_string(msg[:data]); msg }
     end
-    
+
     # gets any messages in the buffer in the same format as CongruousApiInput#gets_data
     def gets_buffer_data(*a)
       @device.buffer.map { |msg| msg[:data] }
@@ -256,16 +261,16 @@ module UniMIDI
   end
 
   class CongruousApiOutput
-    
+
     include CongruousApiAdapter::Device
     extend CongruousApiAdapter::Device::ClassMethods
-    
+
     # sends a message to the output. the message can be:
     #
     # bytes eg output.puts(0x90, 0x40, 0x40)
     # an array of bytes eg output.puts([0x90, 0x40, 0x40])
     # or a string eg output.puts("904040")
-    # if none of those types are found, unimidi will attempt 
+    # if none of those types are found, unimidi will attempt
     # to call to_bytes and then to_a on the object
     #
     def puts(*a)
@@ -276,7 +281,7 @@ module UniMIDI
         else
           if a.first.respond_to?(:to_bytes)
             puts_bytes(*a.first.to_bytes.flatten)
-          elsif a.first.respond_to?(:to_a) 
+          elsif a.first.respond_to?(:to_a)
             puts_bytes(*a.first.to_a.flatten)
           end
       end
